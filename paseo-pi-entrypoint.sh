@@ -28,6 +28,32 @@ for d in "${HOME:-/home/paseo}" "${PASEO_HOME:-${HOME:-/home/paseo}/.paseo}" \
   as_user mkdir -p "$d" || log "WARNING: could not pre-create $d"
 done
 
+# 0. Home layout: the canonical home dotfiles live in a `home` subdir inside
+#    the Paseo state directory ($PASEO_HOME/home) and $HOME only holds
+#    symlinks to them. Keeps credentials/kubeconfig in one obviously-stateful
+#    place, outside any repo checkout, and never in the image.
+STATE_HOME="${PASEO_HOME:-${HOME:-/home/paseo}/.paseo}/home"
+as_user mkdir -p "$STATE_HOME"
+for f in .git-credentials .gitconfig .kube; do
+  real="${HOME:-/home/paseo}/$f"
+  # One-time migration: anything already sitting in $HOME becomes canonical in
+  # the state dir, so re-running this never destroys an operator's setup.
+  if [[ -e "$real" && ! -L "$real" && ! -e "$STATE_HOME/$f" ]]; then
+    as_user mv "$real" "$STATE_HOME/$f" && log "moved $real into $STATE_HOME"
+  fi
+  [[ -e "$STATE_HOME/$f" ]] || continue
+  as_user ln -sfn "$STATE_HOME/$f" "$real" \
+    && log "linked $real -> $STATE_HOME/$f" \
+    || log "WARNING: could not symlink $real"
+done
+
+# Playwright browser store (see playwright-mcp-firefox.sh). Deliberately empty
+# in the image; the Firefox build lands here on first use and survives restarts.
+if [[ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ]]; then
+  as_user mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" \
+    || log "WARNING: could not create $PLAYWRIGHT_BROWSERS_PATH"
+fi
+
 # 1. Seed pi settings from the ConfigMap mounted at /opt/pi/agent. Files are
 #    copied on every start so the
 #    declared settings stay canonical; sessions/auth on the persistent home win
