@@ -37,6 +37,15 @@ RUN apt-get update \
     && python3 --version \
     && python3 -m pip --version
 
+# --- uv / uvx --------------------------------------------------------------
+# Official installer, system-wide into /usr/local/bin. NOT into a user home:
+# /home/paseo is an NFS volume at runtime and masks anything baked there, so
+# PATH-based invocation (uvx) is the only location that survives deployment.
+# Needed by Python MCP servers (e.g. duckduckgo-mcp-server) invoked via uvx.
+RUN curl -LsSf https://astral.sh/uv/install.sh \
+    | env UV_INSTALL_DIR=/usr/local/bin INSTALLER_NO_MODIFY_PATH=1 sh \
+    && uv --version && uvx --version
+
 # --- kubectl ---------------------------------------------------------------
 # Static binary from the official release bucket, sha256-verified. Override the
 # pin with --build-arg KUBECTL_VERSION=v1.37.1 (default: current stable).
